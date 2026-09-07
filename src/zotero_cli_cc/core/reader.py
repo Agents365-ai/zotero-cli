@@ -1083,7 +1083,10 @@ class ZoteroReader:
         tag_rows = conn.execute(
             "SELECT t.name, COUNT(*) as cnt FROM itemTags it "
             "JOIN tags t ON it.tagID = t.tagID "
-            "GROUP BY t.name ORDER BY cnt DESC LIMIT 20"
+            "JOIN items i ON it.itemID = i.itemID "
+            "WHERE 1=1 " + lib_sql + " "
+            "GROUP BY t.name ORDER BY cnt DESC LIMIT 20",
+            lib_params,
         ).fetchall()
         top_tags = {r["name"]: r["cnt"] for r in tag_rows}
 
@@ -1092,17 +1095,25 @@ class ZoteroReader:
             "SELECT c.collectionName, COUNT(ci.itemID) as cnt "
             "FROM collections c "
             "LEFT JOIN collectionItems ci ON c.collectionID = ci.collectionID "
-            "GROUP BY c.collectionName ORDER BY cnt DESC"
+            "WHERE 1=1 " + lib_sql.replace("i.libraryID", "c.libraryID") + " "
+            "GROUP BY c.collectionName ORDER BY cnt DESC",
+            lib_params,
         ).fetchall()
         collections = {r["collectionName"]: r["cnt"] for r in coll_rows}
 
         # Attachments
         pdf_count = conn.execute(
-            "SELECT COUNT(*) as cnt FROM itemAttachments WHERE contentType = 'application/pdf'"
+            "SELECT COUNT(*) as cnt FROM itemAttachments a "
+            "JOIN items i ON a.itemID = i.itemID "
+            "WHERE a.contentType = 'application/pdf' " + lib_sql,
+            lib_params,
         ).fetchone()["cnt"]
 
         # Notes count
-        notes_count = conn.execute("SELECT COUNT(*) as cnt FROM itemNotes").fetchone()["cnt"]
+        notes_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM itemNotes n JOIN items i ON n.itemID = i.itemID WHERE 1=1 " + lib_sql,
+            lib_params,
+        ).fetchone()["cnt"]
 
         return {
             "total_items": total,
